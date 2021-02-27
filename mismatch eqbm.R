@@ -1,4 +1,5 @@
 # Script for solving for general equilibrium
+
 rm(list = ls())
 
 # Rough outline of the algorithm
@@ -19,10 +20,27 @@ rm(list = ls())
 # vii) perform a bisection search to find the ebar that makes this gap zero.
 # viii) with ebar in hand, solve for u and output
 
+# STEP 2: Find the equilibrium
 
-#### Functions #### 
+# i) Guess prices
+# ii) Using the interpolated supply curves, calculate the supplies of both goods at these prices and aggregate output
+# iii) Calculate demands from aggregate output and prices
+# iv) Find the gap between supply and demand in each industry
+# v) If supply exceeds demand, revise prices down. If demand exceeds supply, revise prices up
 
-# Functions that can be used for both industries
+# Notes on parameters
+
+# Gamma
+# The pdf of the mismatch shock is gamma * e ^ (gamma - 1)
+# - For the pdf to be valid, it must be that gamma > 0
+# - When 0 < gamma < 1, the pdf is decreasing and convex: mass is concentrated around low values of e
+# - When gamma = 1, e is U[0,1]
+# - When 1 < gamma < 2, the pdf is increasing and concave. In this region, higher gammas place more weight on high e
+# - When 2 < gamma, the pdf is increasing and convex: mass is concentrated around high values of e
+
+################################################## FUNCTIONS ##################################################
+
+#### Functions for both industries ####
 
 get_theta <- function(ebar, a, B, d, gamma, A){
   
@@ -49,7 +67,7 @@ get_u <- function(theta, ebar, a, d, A, gamma){
 }
 
 
-# Industry 1 functions
+#### Industry 1 functions ####
 
 get_z_top <- function(P, ebar, rho, sigma){
   
@@ -114,9 +132,9 @@ get_Y_1 <- function(ebar, P, a, B, d, gamma, A, rho, sigma, Zmin, Zeta){
   
 }
 
-# Industry 2 functions
+#### Industry 2 functions ####
 
-get_z_bot <- function(P, ebar, rho, gamma, sigma){
+get_z_bot <- function(P, ebar, rho, sigma){
   
   # returns the lower threshold given P, ebar, and parameters
   z_bot <- (rho * P * ebar) ^ (sigma - 1)
@@ -161,14 +179,14 @@ free_entry_2 <- function(P, ebar, a, B, d, gamma, A, rho, sigma, Zmin, zeta, kap
 }
 
 get_Y_2 <- function(ebar, P, a, B, d, gamma, A, rho, sigma, Zmin, Zeta){
-  
+           
   # returns industry 1 output given P, ebar, and parameters
   theta <- get_theta(ebar, a, B, d, gamma, A)
   u <- get_u(theta, ebar, a, d, A, gamma)
   z <- get_z_bot(P, ebar, rho, sigma)
   EZ <- get_EZ_2(z, Zmin, zeta)
   
-  Y <- (1 - u) * ebar * EZ
+  Y <- (1 - u) * EZ
   Y <- Y * (gamma / (1 + gamma)) * (1 - ebar ^ (1 + gamma))
   Y <- Y / (1 - ebar ^ gamma)
   
@@ -176,39 +194,10 @@ get_Y_2 <- function(ebar, P, a, B, d, gamma, A, rho, sigma, Zmin, Zeta){
   
 }
 
+#### Solvers ####
 
-#### Model #####
-
-# Global Parameters
-B <- 0.975
-a <- 0.65
-d <- 0.1
-sigma <- 1 / 2
-rho <- 0.73
-kappa <- 0.132
-Zmin <- 0.36
-zeta <- 2.12
-
-# Numerical function parameters
-tol <- 0.00001
-
-#### Industry 1 Supply Function ####
-
-A <- c(2.3, 2.3)
-gamma <- c(3 / 2, 3 / 2)
-
-# specify a sequence of prices. For each price, obtain the mismatch threshold and supply.
-# With sigma < 1, the price permitted by the price index for either good is 1. 
-P <- seq(0, 1, 0.01)
-n <- length(P)
-ind1 <- data.frame(P, "ebar" = rep(0, n), "Y" = rep(0, n), "theta" = rep(0, n), "z" = rep(0, n), 
-                    "u" = rep(0, n), "N" = rep(0, n), "EZ" = rep(0, n))
-
-ind1$Y[1] <- 0 # no need to solve at P = 0 
-
-for (i in 2:n){
-  P <- ind1$P[i]
-  # bisection search
+ebar_solve <- function(entry_func, P, mid, a, B, d, gamma, A, rho, sigma, Zmin, zeta, kappa){
+  
   top <- 1
   bot <- 0
   solution <- 0
@@ -216,14 +205,13 @@ for (i in 2:n){
   
   while (solution == 0){
     mid <- (top + bot) / 2
-    gap <- free_entry_1(P, mid, a, B, d, gamma[1], A[1], rho, sigma, Zmin, zeta, kappa)
-    
+    gap <- entry_func(P, mid, a, B, d, gamma, A, rho, sigma, Zmin, zeta, kappa)
     if (abs(gap) < tol){
       solution <- 1
     }
     if (gap >= 0){
       bot <- mid
-    }  
+    }
     if (gap < 0){
       top <- mid
     }
@@ -235,7 +223,45 @@ for (i in 2:n){
     }
   }
   
-  ind1$ebar[i] <- mid
+  return(mid)
+  
+}
+
+
+
+
+################################################## MODEL ##################################################
+
+# Global Parameters
+B <- 0.975
+a <- 0.65
+d <- 0.1
+sigma <- 1 / 2
+rho <- 0.8
+kappa <- 0.132
+Zmin <- 0.36
+zeta <- 2.12
+
+# Numerical function parameters
+tol <- 0.00001
+
+#### Industry 1 Supply Function ####
+
+A <- c(2.3, 3.7)
+gamma <- c(3 / 2, 9 / 5)
+
+# specify a sequence of prices. For each price, obtain the mismatch threshold and supply.
+# With sigma < 1, the price permitted by the price index for either good is 1. 
+P <- seq(0, 1, 0.001)
+n <- length(P)
+ind1 <- data.frame(P, "ebar" = rep(0, n), "Y" = rep(0, n), "theta" = rep(0, n), "z" = rep(0, n), 
+                    "u" = rep(0, n), "N" = rep(0, n), "EZ" = rep(0, n))
+
+ind1$Y[1] <- 0 # no need to solve at P = 0 
+
+for (i in 2:n){
+  P <- ind1$P[i]
+  ind1$ebar[i] <- ebar_solve(free_entry_1, P, mid, a, B, d, gamma[1], A[1], rho, sigma, Zmin, zeta, kappa)
   ind1$Y[i] <- get_Y_1(ind1$ebar[i], P, a, B, d, gamma[1], A[1], rho, sigma, Zmin, Zeta)
   ind1$theta[i] <- get_theta(ind1$ebar[i], a, B, d, gamma[1], A[1])
   ind1$z[i] <- get_z_top(P, ind1$ebar[i], rho, sigma)
@@ -246,163 +272,89 @@ for (i in 2:n){
 
 plot(ind1$Y, ind1$P)
 
-# #### Industry 2 Supply Function ####
-# 
-# A_2 <- 20.3
-# gamma_2 <- 2/3
-# 
-# # specify a sequence of prices. For each price, obtain the mismatch threshold and supply 
-# #P_2 <- (1 - P_1 ^ (1 - sigma)) ^ (1 / (1 - sigma))
-# P_2 <- seq(0, 1, 0.01)
-# n <- length(P_1)
-# ebar_2 <- rep(0, n)
-# Y_2 <- rep(0, n)
-# 
-# Y_2[1] <- 0
-# for (i in 2:n){
-#   P <- P_2[i]
-#   # bisection search
-#   top <- 1
-#   bot <- 0
-#   solution <- 0
-#   count <- 0
-#   
-#   while (solution == 0){
-#     mid <- (top + bot) / 2
-#     gap <- free_entry_2(P, mid, a, B, d, gamma_2, A_2, rho, sigma, Zmin, zeta, kappa)
-#     
-#     if (abs(gap) < tol){
-#       solution <- 1
-#     }
-#     if (gap >= 0){
-#       top <- mid
-#     }  
-#     if (gap < 0){
-#       bot <- mid
-#     }
-#     
-#     count <- count + 1
-#     if (count > 1000){
-#       print(c('failed', P))
-#       solution <- 1
-#     }
-#   }
-#   
-#   ebar_2[i] <- mid
-#   Y_2[i] <- get_Y_2(ebar_2[i], P, a, B, d, gamma_2, A_2, rho, sigma, Zmin, Zeta)
-# }
-# 
-# #plot(Y_2, P_2)
-# 
-# #### Solve for eqbm prices ####
-# 
-# # interpolate the functions above to get supply functions, and then find prices that set excess demand to 0
-# P_top <- 1
-# P_bot <- 0
-# count <- 0
-# solution <- 0
-# 
-# while (solution == 0){
-#   p1 <- (P_top + P_bot) / 2
-#   p2 <- (1 - p1 ^ (1 - sigma)) ^ (1 / (1 - sigma))
-#   
-#   y1_S <- approx(P_1, Y_1, p1)$y
-#   y2_S <- approx(P_2, Y_2, p2)$y
-#   
-#   Y <- (y1_S ^ ((sigma - 1) / sigma) + y2_S ^ ((sigma - 1) / sigma)) ^ (sigma / (sigma - 1))
-#   
-#   y1_D <- Y * p1 ^ (-sigma)
-#   y2_D <- Y * p2 ^ (-sigma)
-#   
-#   y1_gap <- y1_S - y1_D
-#   y2_gap <- y2_S - y2_D
-#   
-#   if (abs(y1_gap) < tol){
-#     print(c('converged', p1))
-#     solution <- 1
-#   }
-#   if (y1_gap >= 0){
-#     P_top <- p1
-#   }  
-#   if (y1_gap < 0){
-#     P_bot <- p1
-#   }
-#   
-#   count <- count + 1
-#   if (count > 1000){
-#     print(c('failed', p1))
-#     solution <- 1
-#   }
-# }
-#   
-# #### Given eqbm prices, obtain other quantities #### 
-# 
-# # bisection search for industry 1 equilibrium quantities
-# top <- 1
-# bot <- 0
-# solution <- 0
-# count <- 0
-#   
-# while (solution == 0){
-#   mid <- (top + bot) / 2
-#   gap <- free_entry_1(p1, mid, a, B, d, gamma_1, A_1, rho, sigma, Zmin, zeta, kappa)
-#     
-#   if (abs(gap) < tol){
-#     solution <- 1
-#   }
-#   if (gap >= 0){
-#     top <- mid
-#   }  
-#   if (gap < 0){
-#     bot <- mid
-#   }
-#   
-#   count <- count + 1
-#   if (count > 1000){
-#     print(c('failed', P))
-#     solution <- 1
-#   }
-# }
-#   
-# ebar_1 <- mid
-# Y_1 <- get_Y_1(ebar_1, p1, a, B, d, gamma_1, A_1, rho, sigma, Zmin, Zeta)
-# theta_1 <- get_theta(ebar_1, a, B, d, gamma_1, A_1)
-# z_top <- get_z_top(p1, ebar_1, rho, gamma_1, sigma)
-# u_1<- get_u(theta_1, ebar_1, a, d, A_1)
-# N_1 <- get_N_1(z_top, Zmin, zeta)
-# EZ_1 <- get_EZ_1(z_top, Zmin, zeta)
-# 
-# # bisection search for industry 2 eqbm quantities
-# top <- 1
-# bot <- 0
-# solution <- 0
-# count <- 0
-#   
-# while (solution == 0){
-#   mid <- (top + bot) / 2
-#   gap <- free_entry_2(p2, mid, a, B, d, gamma_2, A_2, rho, sigma, Zmin, zeta, kappa)
-#     
-#   if (abs(gap) < tol){
-#     solution <- 1
-#   }
-#   if (gap >= 0){
-#     top <- mid
-#   }  
-#   if (gap < 0){
-#     bot <- mid
-#   }
-#     
-#   count <- count + 1
-#   if (count > 1000){
-#     print(c('failed', P))
-#     solution <- 1
-#   }
-# }
-#   
-# ebar_2 <- mid
-# Y_2 <- get_Y_2(ebar_2, p2, a, B, d, gamma_2, A_2, rho, sigma, Zmin, Zeta)
-# theta_2 <- get_theta(ebar_2, a, B, d, gamma_2, A_2)
-# z_bot <- get_z_bot(p2, ebar_2, rho, gamma_2, sigma)
-# u_2 <- get_u(theta_2, ebar_2, a, d, A_2)
-# N_2 <- get_N_2(z_bot, Zmin, zeta)
-# EZ_2 <- get_EZ_2(z_bot, Zmin, zeta)
+#### Industry 2 Supply Function ####
+
+P <- seq(0, 1, 0.001)
+n <- length(P)
+ind2 <- data.frame(P, "ebar" = rep(0, n), "Y" = rep(0, n), "theta" = rep(0, n), "z" = rep(0, n), 
+                   "u" = rep(0, n), "N" = rep(0, n), "EZ" = rep(0, n))
+
+ind2$Y[1] <- 0
+
+for (i in 2:n){
+  P <- ind2$P[i]
+  ind2$ebar[i] <- ebar_solve(free_entry_2, P, mid, a, B, d, gamma[2], A[2], rho, sigma, Zmin, zeta, kappa)
+  ind2$Y[i] <- get_Y_2(ind2$ebar[i], P, a, B, d, gamma[2], A[2], rho, sigma, Zmin, Zeta)
+  ind2$theta[i] <- get_theta(ind2$ebar[i], a, B, d, gamma[2], A[2])
+  ind2$z[i] <- get_z_top(P, ind2$ebar[i], rho, sigma)
+  ind2$u[i] <- get_u(ind2$theta[i], ind2$ebar[i], a, d, A[2], gamma[2])
+  ind2$N[i] <- get_N_2(ind2$z[i], Zmin, zeta)
+  ind2$EZ[i] <- get_EZ_2(ind2$z[i], Zmin, zeta)
+  
+}
+
+plot(ind2$Y, ind2$P)
+
+#### Solve for eqbm prices ####
+
+eqbm <- data.frame("P" = rep(0, 2), "ebar" = rep(0, 2), "Y" = rep(0, 2), "theta" = rep(0, 2), "z" = rep(0, 2), 
+                   "u" = rep(0, 2), "N" = rep(0, 2), "EZ" = rep(0, 2))
+
+# interpolate the functions above to get supply functions, and then find prices that set excess demand to 0
+P_top <- 1
+P_bot <- 0
+count <- 0
+solution <- 0
+
+while (solution == 0){
+  eqbm$P[1] <- (P_top + P_bot) / 2
+  eqbm$P[2] <- (1 - eqbm$P[1] ^ (1 - sigma)) ^ (1 / (1 - sigma))
+
+  YS_1 <- approx(ind1$P, ind1$Y, eqbm$P[1])$y
+  YS_2 <- approx(ind2$P, ind2$Y, eqbm$P[2])$y
+
+  Y <- (YS_1 ^ ((sigma - 1) / sigma) + YS_2 ^ ((sigma - 1) / sigma)) ^ (sigma / (sigma - 1))
+
+  YD_1 <- Y * eqbm$P[1] ^ (-sigma)
+  YD_2 <- Y * eqbm$P[2] ^ (-sigma)
+
+  Y1_gap <- YS_1 - YD_1
+ 
+  if (abs(Y1_gap) < tol){
+    print(c('converged', eqbm$P[1]))
+    solution <- 1
+  }
+  if (Y1_gap >= 0){
+    P_top <- eqbm$P[1]
+  }
+  if (Y1_gap < 0){
+    P_bot <- eqbm$P[1]
+  }
+
+  count <- count + 1
+  if (count > 1000){
+    print(c('failed', eqbm$P[1]))
+    solution <- 1
+  }
+}
+
+#### Given eqbm prices, obtain other quantities ####
+
+free_entry_funcs <- list(free_entry_1, free_entry_2)
+get_z_funcs <- list(get_z_top, get_z_bot)
+get_N_funcs <- list(get_N_1, get_N_2)
+get_EZ_funcs <- list(get_EZ_1, get_EZ_2)
+
+for (i in 1:2){
+  eqbm$ebar[i] <- ebar_solve(free_entry_funcs[[i]], eqbm$P[i], mid, a, B, d, gamma[i], A[i], rho, sigma, Zmin, zeta, kappa)
+  eqbm$Y[i] <- get_Y_1(eqbm$ebar[i], eqbm$P[i], a, B, d, gamma[i], A[i], rho, sigma, Zmin, Zeta)
+  eqbm$theta[i] <- get_theta(eqbm$ebar[i], a, B, d, gamma[i], A[i])
+  eqbm$z[i] <- get_z_funcs[[i]](eqbm$P[i], eqbm$ebar[i], rho, sigma)
+  eqbm$u[i] <- get_u(eqbm$theta[i], eqbm$ebar[i], a, d, A[i], gamma[i])
+  eqbm$N[i] <- get_N_funcs[[i]](eqbm$z[i], Zmin, zeta)
+  eqbm$EZ[i] <- get_EZ_funcs[[i]](eqbm$z[i], Zmin, zeta)
+}
+
+# check for thresholds to make sense
+1 > (rho * eqbm$P[1] * eqbm$ebar[1]) ^ (1 - sigma) + (rho * eqbm$P[2] * eqbm$ebar[2]) ^ (1 - sigma)
+
