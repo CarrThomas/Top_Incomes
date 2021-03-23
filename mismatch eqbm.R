@@ -227,16 +227,134 @@ ebar_solve <- function(entry_func, P, mid, a, B, d, gamma, A, rho, sigma, Zmin, 
   
 }
 
+#### Income Distribution Functions ####
 
+income_dist_1 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
+  
+  min_inc <- rho * P * Zmin * max(1, z) * ebar
+  inc_thres <- min_inc / ebar
+  Zratio <- min_inc / (y * max(1, z))
+  A1 <- gamma / (gamma + zeta)
+  A2 <- gamma / (2 * gamma + (4 * zeta))
+  A3 <- zeta / (gamma + zeta)
+  A4 <- zeta / (gamma + 2 * zeta)
+  
+  # Region 1: below the minimum income
+  if (y <= min_inc){
+    return(0)
+  }
+  # Region 2: no agent has income below y for all epsilon
+  if ((y > min_inc) & (y <= inc_thres)){
+    part1 <- A1 * Zratio ^ zeta - A2 * z ^ zeta * Zratio ^ (2 * zeta)
+    part2 <- Zratio ^ (-gamma) * (A3 - A4 * z ^ zeta) + z ^ zeta / 2 - 1
+    part3 <- Zratio ^ (-gamma) * (A3 - A4) * z ^ (- zeta - gamma) - 1 / (2 * z ^ zeta)
+    return((1 - u) * ebar ^ gamma *(part1 + part2 * (z < 1) + part3 * (z >= 1)) / (1 - ebar ^ gamma))
+  }
+  # Region 3: some agents have income below y for all epsilon
+  if (y > inc_thres){
+    part1 <- A1 * Zratio ^ zeta * (ebar ^ gamma - ebar ^ (-zeta)) - 
+      Zratio ^ (2 * zeta) * A2 * z ^ zeta * (ebar ^ gamma - ebar ^ (- 2 * zeta))
+    part2 <- (1 - ebar ^ gamma) * (1 - z ^ zeta / 2)
+    part3 <- (1 - ebar ^ gamma) * (1 / (2 * z ^ zeta))
+    return((1 - u) * (part1 + part2 * (z < 1) + part3 * (z >= 1)) / (1 - ebar ^ gamma))
+  }
+  
+}
 
+income_dist_2 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
+  
+  min_inc <- rho * P * Zmin * max(1, 1 / z) * ebar
+  inc_thres <- min_inc / ebar
+  Zratio <- min_inc / (y * max(1, 1 / z))
+  A1 <- gamma / (gamma + zeta)
+  A2 <- gamma / (2 * gamma + (4 * zeta))
+  A3 <- zeta / (gamma + zeta)
+  A4 <- zeta / (gamma + 2 * zeta)
+  
+  # Region 1: below the minimum income
+  if (y <= min_inc){
+    return(0)
+  }
+  # Region 2: no agent has income below y for all epsilon
+  if ((y > min_inc) & (y <= inc_thres)){
+    part1 <- A1 * Zratio ^ zeta - A2 * z ^ (- zeta) * Zratio ^ (2 * zeta)
+    part2 <- Zratio ^ (-gamma) * (A3 - A4) * z ^ (zeta + gamma) - z ^ zeta / 2
+    part3 <- Zratio ^ (-gamma) * (A3 - A4 * z ^ (- zeta)) + 1 / (2 * z ^ zeta) - 1
+    return((1 - u) * ebar ^ gamma *(part1 + part2 * (z < 1) + part3 * (z >= 1)) / (1 - ebar ^ gamma))
+  }
+  # Region 3: some agents have income below y for all epsilon
+  if (y > inc_thres){
+    part1 <- A1 * Zratio ^ zeta * (ebar ^ gamma - ebar ^ (-zeta)) - 
+      Zratio ^ (2 * zeta) * A2 * z ^ (- zeta) * (ebar ^ gamma - ebar ^ (- 2 * zeta))
+    part2 <- (1 - ebar ^ gamma) * (z ^ zeta / 2)
+    part3 <- (1 - ebar ^ gamma) * (1 -  1 / (2 * z ^ zeta))
+    return((1 - u) * (part1 + part2 * (z < 1) + part3 * (z >= 1)) / (1 - ebar ^ gamma))
+  }
+  
+}
 
+selfemp_mininc <- function(z_lower, z_upper, sigma, Zmin){
+  if (z_upper > 1 & z_lower < 1){
+    return(Zmin * 2 ^ (1 / (sigma - 1)))
+  }
+  if (z_upper <= 1){
+    return(Zmin * (1 + z_upper ^ (1 - sigma)) ^ (1 / (sigma - 1)))
+  }
+    
+  if (z_lower >= 1){
+    return(Zmin * (1 + z_lower ^ (sigma - 1)) ^ (1 / (sigma - 1)))
+  }
+}
+
+selfemp_lowerbound <- function(Zmin, sigma, y, z_lower){
+  thres <- Zmin * (z_lower ^ (1 - sigma) + 1) ^ (1 / (sigma - 1))
+  
+  if (y <= thres){
+    return(Zmin)
+  }
+  
+  if (y > thres){
+    return(y * (1 + z_lower ^ (1 - sigma)) ^ (1 / (1 - sigma)))
+  }
+  
+}
+
+selfemp_upperbound <- function(Zmin, sigma, y, z_upper){
+  thres <- Zmin * z_upper / (1 + z_upper ^ (1 - sigma)) ^ (1 / (1 - sigma))
+  
+  if (y <= thres){
+    return(y * Zmin / (Zmin ^ (1 - sigma) - y ^ (1 - sigma)) ^ (1 / (1 - sigma)))
+  }
+  if (y > thres){
+    return(y * (1 + z_upper ^ (1 - sigma)) ^ (1 / (1 - sigma)))
+  }
+}
+
+selfemp_integral <- function(Z, sigma, y, zeta, Zmin){
+  int <- (Z ^ (1 - sigma) - y ^ (1 - sigma)) ^ ((1 + zeta) / (1 - sigma))
+  int <- zeta ^ 2 * Zmin ^ (2 * zeta) * int
+  int <- int / (Z ^ (2 * (1 + zeta)) * y ^ (1 + zeta))
+  return(int)
+}
+
+selfemp_density <- function(z_upper, z_lower, Zmin, sigma, y, zeta){
+  
+  lower_bound <- selfemp_lowerbound(Zmin, sigma, y, z_lower)
+  upper_bound <- selfemp_upperbound(Zmin, sigma, y, z_upper)
+  
+  dens <- integrate(selfemp_integral, lower = lower_bound, upper = upper_bound, sigma = sigma, y = y, zeta = zeta,
+                    Zmin = Zmin)
+  
+  return(dens$value)
+  
+}
 ################################################## MODEL ##################################################
 
 # Global Parameters
 B <- 0.975
 a <- 0.65
 d <- 0.1
-sigma <- 1 / 2
+sigma <- 1 /10
 rho <- 0.8
 kappa <- 0.132
 Zmin <- 0.36
@@ -247,7 +365,7 @@ tol <- 0.00001
 
 #### Industry 1 Supply Function ####
 
-A <- c(2.3, 3.7)
+A <- c(100, 100)
 gamma <- c(3 / 2, 9 / 5)
 
 # specify a sequence of prices. For each price, obtain the mismatch threshold and supply.
@@ -355,6 +473,39 @@ for (i in 1:2){
   eqbm$EZ[i] <- get_EZ_funcs[[i]](eqbm$z[i], Zmin, zeta)
 }
 
-# check for thresholds to make sense
+# check that thresholds make sense
 1 > (rho * eqbm$P[1] * eqbm$ebar[1]) ^ (1 - sigma) + (rho * eqbm$P[2] * eqbm$ebar[2]) ^ (1 - sigma)
 
+############################################### INCOME DISTRIBUTION ###############################################
+
+# Industry 1
+
+min_inc_1 <- rho * eqbm$P[1] * Zmin * max(1, eqbm$z[1]) * eqbm$ebar[1]
+
+temp <- seq(min_inc_1, 2, length.out = 100)
+mass <- sapply(temp, income_dist_1, rho = rho, P = eqbm$P[1], Zmin = Zmin, z = eqbm$z[1], 
+               ebar = eqbm$ebar[1], gamma = gamma[1], zeta = zeta, u = eqbm$u[1])
+mass <- mass / eqbm$N[1] # get as a fraction of total people participating in industry 1
+
+plot(temp, mass)
+
+# Industry 2
+
+min_inc_2 <- rho * eqbm$P[2] * Zmin * max(1, 1 / eqbm$z[2]) * eqbm$ebar[2]
+temp_2 <- seq(min_inc_2, 2, length.out = 100)
+mass_2 <- sapply(temp_2, income_dist_2, rho = rho, P = eqbm$P[2], Zmin = Zmin, z = eqbm$z[2], 
+               ebar = eqbm$ebar[2], gamma = gamma[2], zeta = zeta, u = eqbm$u[2])
+mass_2 <- mass_2 / eqbm$N[2] # get as a fraction of total people participating in industry 2
+
+lines(temp_2, mass_2)
+
+# Self Employed
+
+min_inc_selfemp <- selfemp_mininc(eqbm$z[2], eqbm$z[1], sigma, Zmin)
+
+temp_3 <- seq(min_inc_selfemp, 2, length.out = 100)
+mass_3 <- sapply(temp_3, selfemp_density, z_upper = eqbm$z[1], z_lower = eqbm$z[2], Zmin = Zmin, sigma = sigma, 
+                 zeta = zeta)
+mass_3 <- mass_3 / (eqbm$N[1] + eqbm$N[2]) 
+
+plot(temp_3, mass_3)
