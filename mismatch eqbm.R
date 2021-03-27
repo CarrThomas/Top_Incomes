@@ -280,7 +280,7 @@ income_dens_1 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
     part1 <- zeta * A1 * Zratio ^ zeta - 2 * zeta * A2 * z ^ zeta * Zratio ^ (2 * zeta)
     part2 <- gamma * Zratio ^ (-gamma) * (A3 - A4 * z ^ zeta) 
     part3 <- gamma * Zratio ^ (-gamma) * (A3 - A4) * z ^ (- zeta - gamma)
-    return(-(1 - u) * ebar ^ gamma *(part1 + part2 * (z < 1) + part3 * (z >= 1)) / ((1 - ebar ^ gamma) * y))
+    return(-(1 - u) * ebar ^ gamma *(part1 - part2 * (z < 1) - part3 * (z >= 1)) / ((1 - ebar ^ gamma) * y))
   }
   # Region 3: some agents have income below y for all epsilon
   if (y > inc_thres){
@@ -310,7 +310,7 @@ income_dist_2 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
     part1 <- A1 * Zratio ^ zeta - A2 * z ^ (- zeta) * Zratio ^ (2 * zeta)
     part2 <- Zratio ^ (-gamma) * (A3 - A4) * z ^ (zeta + gamma) - z ^ zeta / 2
     part3 <- Zratio ^ (-gamma) * (A3 - A4 * z ^ (- zeta)) + 1 / (2 * z ^ zeta) - 1
-    return((1 - u) * ebar ^ gamma *(part1 + part2 * (z < 1) + part3 * (z >= 1)) / (1 - ebar ^ gamma))
+    return((1 - u) * ebar ^ gamma *(part1 - part2 * (z < 1) - part3 * (z >= 1)) / (1 - ebar ^ gamma))
   }
   # Region 3: some agents have income below y for all epsilon
   if (y > inc_thres){
@@ -325,9 +325,9 @@ income_dist_2 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
 
 income_dens_2 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
   
-  min_inc <- rho * P * Zmin * max(1, z) * ebar
+  min_inc <- rho * P * Zmin * max(1, 1 / z) * ebar
   inc_thres <- min_inc / ebar
-  Zratio <- min_inc / (y * max(1, z))
+  Zratio <- min_inc / (y * max(1, 1 / z))
   A1 <- gamma / (gamma + zeta)
   A2 <- gamma / (2 * gamma + (4 * zeta))
   A3 <- zeta / (gamma + zeta)
@@ -342,7 +342,7 @@ income_dens_2 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
     part1 <- zeta * A1 * Zratio ^ zeta - 2 * zeta * A2 * z ^ (- zeta) * Zratio ^ (2 * zeta)
     part2 <- gamma * Zratio ^ (-gamma) * (A3 - A4) * z ^ (zeta + gamma)
     part3 <- gamma * Zratio ^ (-gamma) * (A3 - A4 * z ^ (- zeta))
-    return(-(1 - u) * ebar ^ gamma *(part1 + part2 * (z < 1) + part3 * (z >= 1)) / ((1 - ebar ^ gamma) * y))
+    return(-(1 - u) * ebar ^ gamma * (part1 - part2 * (z < 1) - part3 * (z >= 1)) / ((1 - ebar ^ gamma) * y))
   }
   # Region 3: some agents have income below y for all epsilon
   if (y > inc_thres){
@@ -413,10 +413,10 @@ selfemp_density <- function(z_upper, z_lower, Zmin, sigma, y, zeta){
 
 # Global Parameters
 B <- 0.975
-a <- 0.65
+a <- 0.5
 d <- 0.1
 sigma <- 1 /10
-rho <- 0.8
+rho <- 0.95
 kappa <- 0.132
 Zmin <- 0.36
 zeta <- 2.12
@@ -426,8 +426,8 @@ tol <- 0.00001
 
 #### Industry 1 Supply Function ####
 
-A <- c(100, 100)
-gamma <- c(3 / 2, 9 / 5)
+A <- c(5, 5)
+gamma <- c(1, 4)
 
 # specify a sequence of prices. For each price, obtain the mismatch threshold and supply.
 # With sigma < 1, the price permitted by the price index for either good is 1. 
