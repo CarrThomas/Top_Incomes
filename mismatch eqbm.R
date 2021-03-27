@@ -261,6 +261,36 @@ income_dist_1 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
   
 }
 
+income_dens_1 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
+  
+  min_inc <- rho * P * Zmin * max(1, z) * ebar
+  inc_thres <- min_inc / ebar
+  Zratio <- min_inc / (y * max(1, z))
+  A1 <- gamma / (gamma + zeta)
+  A2 <- gamma / (2 * gamma + (4 * zeta))
+  A3 <- zeta / (gamma + zeta)
+  A4 <- zeta / (gamma + 2 * zeta)
+  
+  # Region 1: below the minimum income
+  if (y <= min_inc){
+    return(0)
+  }
+  # Region 2: no agent has income below y for all epsilon
+  if ((y > min_inc) & (y <= inc_thres)){
+    part1 <- zeta * A1 * Zratio ^ zeta - 2 * zeta * A2 * z ^ zeta * Zratio ^ (2 * zeta)
+    part2 <- gamma * Zratio ^ (-gamma) * (A3 - A4 * z ^ zeta) 
+    part3 <- gamma * Zratio ^ (-gamma) * (A3 - A4) * z ^ (- zeta - gamma)
+    return(-(1 - u) * ebar ^ gamma *(part1 + part2 * (z < 1) + part3 * (z >= 1)) / ((1 - ebar ^ gamma) * y))
+  }
+  # Region 3: some agents have income below y for all epsilon
+  if (y > inc_thres){
+    part1 <- zeta * A1 * Zratio ^ zeta * (ebar ^ gamma - ebar ^ (-zeta)) - 
+      2 * zeta * Zratio ^ (2 * zeta) * A2 * z ^ zeta * (ebar ^ gamma - ebar ^ (- 2 * zeta))
+    return(-(1 - u) * part1 / ((1 - ebar ^ gamma) * y))
+  }
+  
+}
+
 income_dist_2 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
   
   min_inc <- rho * P * Zmin * max(1, 1 / z) * ebar
@@ -292,6 +322,37 @@ income_dist_2 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
   }
   
 }
+
+income_dens_2 <- function(rho, P, Zmin, z, ebar, y, gamma, zeta, u){
+  
+  min_inc <- rho * P * Zmin * max(1, z) * ebar
+  inc_thres <- min_inc / ebar
+  Zratio <- min_inc / (y * max(1, z))
+  A1 <- gamma / (gamma + zeta)
+  A2 <- gamma / (2 * gamma + (4 * zeta))
+  A3 <- zeta / (gamma + zeta)
+  A4 <- zeta / (gamma + 2 * zeta)
+  
+  # Region 1: below the minimum income
+  if (y <= min_inc){
+    return(0)
+  }
+  # Region 2: no agent has income below y for all epsilon
+  if ((y > min_inc) & (y <= inc_thres)){
+    part1 <- zeta * A1 * Zratio ^ zeta - 2 * zeta * A2 * z ^ (- zeta) * Zratio ^ (2 * zeta)
+    part2 <- gamma * Zratio ^ (-gamma) * (A3 - A4) * z ^ (zeta + gamma)
+    part3 <- gamma * Zratio ^ (-gamma) * (A3 - A4 * z ^ (- zeta))
+    return(-(1 - u) * ebar ^ gamma *(part1 + part2 * (z < 1) + part3 * (z >= 1)) / ((1 - ebar ^ gamma) * y))
+  }
+  # Region 3: some agents have income below y for all epsilon
+  if (y > inc_thres){
+    part1 <- zeta * A1 * Zratio ^ zeta * (ebar ^ gamma - ebar ^ (-zeta)) - 
+      2 * zeta * Zratio ^ (2 * zeta) * A2 * z ^ (- zeta) * (ebar ^ gamma - ebar ^ (- 2 * zeta))
+    return(-(1 - u) * part1 / ((1 - ebar ^ gamma) * y))
+  }
+  
+}
+
 
 selfemp_mininc <- function(z_lower, z_upper, sigma, Zmin){
   if (z_upper > 1 & z_lower < 1){
@@ -485,9 +546,12 @@ min_inc_1 <- rho * eqbm$P[1] * Zmin * max(1, eqbm$z[1]) * eqbm$ebar[1]
 temp <- seq(min_inc_1, 2, length.out = 100)
 mass <- sapply(temp, income_dist_1, rho = rho, P = eqbm$P[1], Zmin = Zmin, z = eqbm$z[1], 
                ebar = eqbm$ebar[1], gamma = gamma[1], zeta = zeta, u = eqbm$u[1])
-mass <- mass / eqbm$N[1] # get as a fraction of total people participating in industry 1
+# mass <- mass / eqbm$N[1] # get as a fraction of total people participating in industry 1
+dens <- sapply(temp, income_dens_1, rho = rho, P = eqbm$P[1], Zmin = Zmin, z = eqbm$z[1], 
+               ebar = eqbm$ebar[1], gamma = gamma[1], zeta = zeta, u = eqbm$u[1])
 
-plot(temp, mass)
+#plot(temp, mass)
+lines(temp,dens)
 
 # Industry 2
 
@@ -495,17 +559,24 @@ min_inc_2 <- rho * eqbm$P[2] * Zmin * max(1, 1 / eqbm$z[2]) * eqbm$ebar[2]
 temp_2 <- seq(min_inc_2, 2, length.out = 100)
 mass_2 <- sapply(temp_2, income_dist_2, rho = rho, P = eqbm$P[2], Zmin = Zmin, z = eqbm$z[2], 
                ebar = eqbm$ebar[2], gamma = gamma[2], zeta = zeta, u = eqbm$u[2])
-mass_2 <- mass_2 / eqbm$N[2] # get as a fraction of total people participating in industry 2
+# mass_2 <- mass_2 / eqbm$N[2] # get as a fraction of total people participating in industry 2
+dens_2 <- sapply(temp_2, income_dens_2, rho = rho, P = eqbm$P[2], Zmin = Zmin, z = eqbm$z[2], 
+                 ebar = eqbm$ebar[2], gamma = gamma[2], zeta = zeta, u = eqbm$u[2])
 
-lines(temp_2, mass_2)
+#lines(temp_2, mass_2)
+plot(temp_2, dens_2)
 
 # Self Employed
 
 min_inc_selfemp <- selfemp_mininc(eqbm$z[2], eqbm$z[1], sigma, Zmin)
 
-temp_3 <- seq(min_inc_selfemp, 2, length.out = 100)
-mass_3 <- sapply(temp_3, selfemp_density, z_upper = eqbm$z[1], z_lower = eqbm$z[2], Zmin = Zmin, sigma = sigma, 
+temp_3 <- seq(min_inc_selfemp, 2, length.out = 1000)
+dens_3 <- sapply(temp_3, selfemp_density, z_upper = eqbm$z[1], z_lower = eqbm$z[2], Zmin = Zmin, sigma = sigma, 
                  zeta = zeta)
-mass_3 <- mass_3 / (eqbm$N[1] + eqbm$N[2]) 
+# dens_3 <- dens_3 / (1 - eqbm$N[1] + eqbm$N[2]) 
 
-plot(temp_3, mass_3)
+plot(temp_3, dens_3, type = "l", col = 2)
+lines(temp, dens, col = 3)
+lines(temp_2, dens_2, col = 4)
+legend(x = 1.5, y = 1.5, legend = c("self employed", "industry 1" , "industry 2"), col = c(2, 3, 4), lty = c(1,1,1))
+       
