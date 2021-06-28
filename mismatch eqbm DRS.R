@@ -1,5 +1,3 @@
-#test
-
 # Script for solving for general equilibrium
 
 rm(list = ls())
