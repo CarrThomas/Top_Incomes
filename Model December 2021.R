@@ -12,7 +12,7 @@ library(tidyr)
 
 ############################### PARAMETER VALUES ###############################
 
-a <- 0.5 # share of managerial labour
+a <- 0.6 # share of managerial labour
 tau <- 0.2 # labour market "friction"
 mu <- c(0, 0) # means of the normal distributions
 o <- c(1, 1) # standard deviations of the normal distributions
@@ -35,12 +35,13 @@ get_Ns <- function(w, mu, o, a, tau){
     
   }
   
-  return(exp(mu[2] + (o[2] ^ 2) / 2) * integrate(temp, -Inf, Inf)$value)
+  return((1 - tau) * exp(mu[2] + (o[2] ^ 2) / 2) * 
+           integrate(temp, -Inf, Inf)$value)
   
 }
 
 # Choose the maximum w so that chi is 1000
-w_max <- 1000 ^ a * (1 - a) ^ (1 - a) * a ^ a
+w_max <- 5 ^ a * (1 - a) ^ (1 - a) * a ^ a
 w <- seq(0, w_max, length.out = 100)
 Ns <- rep(0, 100)
 
